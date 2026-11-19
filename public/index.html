@@ -20,7 +20,7 @@ canvas{display:block}
 </style></head><body>
 <div id="hud"></div><div id="msg"></div>
 <div id="btns"><button id="bv">View (C)</button><button id="br">Reset (R)</button></div>
-<div id="help">Arrows: pitch / roll &nbsp;·&nbsp; W/S: throttle &nbsp;·&nbsp; A/D: rudder &nbsp;·&nbsp; Space: brake<br>C: change view &nbsp;·&nbsp; R: reset &nbsp;·&nbsp; I: invert pitch</div>
+<div id="help">Arrows: pitch / roll &nbsp;·&nbsp; W/S: throttle &nbsp;·&nbsp; A/D: rudder &nbsp;·&nbsp; Space: brake<br>C: change view &nbsp;·&nbsp; R: reset &nbsp;·&nbsp; I: invert pitch<br>Goal: fly through the rings in order, then land on the runway</div>
 <div class="stick" id="sl"><div class="lbl">Throttle / Rudder</div><div class="knob"></div></div>
 <div class="stick" id="sr"><div class="lbl">Pitch / Roll</div><div class="knob"></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -78,7 +78,7 @@ shadow.rotation.x=-Math.PI/2;scene.add(shadow);
 const P={m:1.5,S:0.28,b:1.4,c:0.2,Tmax:14,rho:1.225,Ix:0.05,Iy:0.12,Iz:0.10};
 const st={p:new V3(),v:new V3(),q:new Q(),w:new V3(),V:0,al:0,ground:false,crash:0};
 const c={ail:0,ele:0,rud:0,thr:0};let brake=0,simT=0;
-function reset(){st.p.set(0,0.14,0);st.v.set(0,0,0);st.q.set(0,0,0,1);st.w.set(0,0,0);st.crash=0;st.V=0;st.al=0;c.ail=c.ele=c.rud=c.thr=0;thrT=0;L.y=-1;paintStick(sl,L);document.getElementById('msg').style.display='none'}
+function reset(){st.p.set(0,0.14,0);st.v.set(0,0,0);st.q.set(0,0,0,1);st.w.set(0,0,0);st.crash=0;st.V=0;st.al=0;c.ail=c.ele=c.rud=c.thr=0;thrT=0;L.y=-1;paintStick(sl,L);document.getElementById('msg').style.display='none';resetCourse()}
 
 function step(dt){
  const qi=st.q.clone().invert();
@@ -103,8 +103,8 @@ function step(dt){
  // moments (x=roll, y=yaw[+left], z=pitch[+nose up])
  const k=P.b/(2*Ve),kc=P.c/(2*Ve),{x:p,y:r,z:qq}=st.w;
  const Mx=qe*P.S*P.b*(0.08*c.ail-0.45*p*k-0.1*r*k)-qb*P.S*P.b*0.05*be-0.1*c.thr;
- const Mz=qe*P.S*P.c*(0.45*c.ele-12*qq*kc)+qb*P.S*P.c*(0.038-0.8*clamp(al,-0.7,0.7));
- const My=qb*P.S*P.b*(-0.06*be)+qe*P.S*P.b*(-0.05*c.rud-0.1*r*k+0.01*c.ail);
+ const Mz=qe*P.S*P.c*(0.28*c.ele-12*qq*kc)+qb*P.S*P.c*(0.038-0.8*clamp(al,-0.7,0.7));
+ const My=qb*P.S*P.b*(-0.06*be)+qe*P.S*P.b*(-0.02*c.rud-0.15*r*k+0.01*c.ail);
  const Mb=new V3(Mx,My,Mz);
  // ground contact (wheels + airframe)
  const Mg=new V3();st.ground=false;
@@ -117,7 +117,7 @@ function step(dt){
   else if(vw.length()>6&&!st.crash)st.crash=.001;
   const fwd=new V3(1,0,0).applyQuaternion(st.q);fwd.y=0;
   if(fwd.length()<.05)fwd.set(1,0,0);fwd.normalize();
-  if(cp.steer)fwd.applyAxisAngle(new V3(0,1,0),-0.45*c.rud);
+  if(cp.steer)fwd.applyAxisAngle(new V3(0,1,0),-0.3*c.rud);
   const side=fwd.clone().cross(new V3(0,1,0));
   const vf=vw.dot(fwd),vs=vw.dot(side);
   const Fw=new V3(0,N,0);
@@ -156,7 +156,7 @@ function mkStick(el,keepY){const s={x:0,y:keepY?-1:0,id:null,el,keepY};
 function paintStick(el,s){el=s.el||el;el.lastElementChild.style.transform=`translate(${s.x*63}px,${-s.y*63}px)`}
 const sl=document.getElementById('sl'),sr=document.getElementById('sr');
 const L=mkStick(sl,true),R=mkStick(sr,false);
-const ex=v=>0.6*v+0.4*v*v*v,pick=(a,b)=>Math.abs(a)>Math.abs(b)?a:b;
+const ex=v=>0.5*v+0.5*v*v*v,pick=(a,b)=>Math.abs(a)>Math.abs(b)?a:b;
 const kb=(a,b)=>(K[a]?1:0)-(K[b]?1:0);
 function inputs(dt){
  const ramp=(cur,t,r)=>cur+clamp(t-cur,-r*dt,r*dt);
@@ -192,19 +192,49 @@ function updateCam(dt){
  cam.updateProjectionMatrix();
 }
 
+/* ---------- beginner course: 10 rings, then land ---------- */
+const GR=9,GP=[[50,6,0],[130,14,0],[210,20,-20],[240,22,-90],[200,22,-150],[110,22,-165],[10,22,-155],[-60,20,-100],[-70,12,-35],[-40,6,0]].map(a=>new V3(...a));
+const gates=GP.map((p,i)=>{
+ const n=i==GP.length-1?new V3(1,0,0):(GP[i+1].clone().sub(GP[i-1]||new V3(0,0,0)));n.y*=.3;n.normalize();
+ const m=new THREE.Mesh(new THREE.TorusGeometry(GR,.35,8,40),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.4}));
+ m.position.copy(p);m.quaternion.setFromUnitVectors(new V3(0,0,1),n);scene.add(m);return{p,n,m}});
+let gi=0,tCourse=0,started=false,done=false,landT=0,prevS=null,best=null;
+try{best=parseFloat(localStorage.getItem('rcBest'))||null}catch(e){}
+function paintGates(){gates.forEach((g,i)=>{const m=g.m.material;m.color.set(i<gi?0x33dd55:i==gi?0xff9900:0xffffff);m.opacity=i<gi?.2:i==gi?.95:.4})}
+function resetCourse(){gi=0;tCourse=0;started=false;done=false;landT=0;prevS=null;paintGates()}
+function updateCourse(dt){
+ if(st.crash||done)return;
+ if(c.thr>.05)started=true;if(started)tCourse+=dt;
+ if(gi<gates.length){
+  const g=gates[gi],d=st.p.clone().sub(g.p),s=d.dot(g.n);
+  if(prevS!==null&&prevS<0&&s>=0&&d.addScaledVector(g.n,-s).length()<GR){gi++;prevS=null;paintGates()}else prevS=s;
+ }else{
+  const onRw=st.ground&&Math.abs(st.p.z)<4.5&&st.p.x>-10&&st.p.x<110;
+  if(onRw&&Math.hypot(st.v.x,st.v.z)<1.5){landT+=dt;if(landT>1)finish()}else landT=0;
+ }
+}
+function finish(){done=true;const nb=!best||tCourse<best;if(nb){best=tCourse;try{localStorage.setItem('rcBest',best)}catch(e){}}
+ msg.style.display='block';msg.textContent=`Course complete! ${tCourse.toFixed(1)} s${nb?' – new best!':''}  (R to fly again)`}
+function courseHud(){
+ let t=`TIME   ${tCourse.toFixed(1)} s${best?'   BEST '+best.toFixed(1)+' s':''}\nRINGS  ${gi}/${gates.length}\n`;
+ if(gi>=gates.length)return t+(done?'DONE':'LAND on the runway and stop');
+ const rel=gates[gi].p.clone().sub(st.p).applyQuaternion(st.q.clone().invert());
+ const h=rel.z>4?'→':rel.z<-4?'←':'',v=rel.y>3?'↑':rel.y<-3?'↓':'';
+ return t+`NEXT   ${rel.length().toFixed(0)} m ${rel.x<0?'turn around':h+v}`}
+
 /* ---------- main loop ---------- */
 const hud=document.getElementById('hud'),msg=document.getElementById('msg');
 let last=performance.now(),acc=0;const H=1/240;reset();
 function frame(now){
  const dt=Math.min((now-last)/1000,0.05);last=now;
- inputs(dt);acc+=dt;while(acc>=H){step(H);acc-=H}
+ inputs(dt);acc+=dt;while(acc>=H){step(H);acc-=H}updateCourse(dt);
  if(st.crash){st.crash+=dt;msg.style.display='block';msg.textContent='Crashed – resetting…';if(st.crash>2.5)reset()}
  plane.position.copy(st.p);plane.quaternion.copy(st.q);
  aL.rotation.z=c.ail*.5;aR.rotation.z=-c.ail*.5;el.rotation.z=-c.ele*.5;ru.rotation.y=c.rud*.5;prop.rotation.x+=c.thr*60*dt+.2;
  shadow.position.set(st.p.x,0.03,st.p.z);const s=1/(1+st.p.y*.08);shadow.scale.setScalar(s);shadow.material.opacity=.35*s;
  updateCam(dt);
  const stall=Math.abs(st.al)>0.262&&st.V>4&&!st.ground;
- hud.textContent=`SPEED  ${(st.V*3.6).toFixed(0)} km/h\nALT    ${Math.max(0,st.p.y-.12).toFixed(1)} m\nTHR    ${(c.thr*100).toFixed(0)}%\nAOA    ${(st.al*57.3).toFixed(0)}°${stall?'  STALL':''}\nVIEW   ${names[camMode]}`;
+ hud.textContent=`SPEED  ${(st.V*3.6).toFixed(0)} km/h\nALT    ${Math.max(0,st.p.y-.12).toFixed(1)} m\nTHR    ${(c.thr*100).toFixed(0)}%\nAOA    ${(st.al*57.3).toFixed(0)}°${stall?'  STALL':''}\nVIEW   ${names[camMode]}\n${courseHud()}`;
  renderer.render(scene,cam);requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
