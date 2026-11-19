@@ -12,15 +12,16 @@ canvas{display:block}
 #btns button{font:600 14px system-ui;color:#fff;background:#0007;border:1px solid #fff6;border-radius:10px;padding:10px 14px;backdrop-filter:blur(6px)}
 #help{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);font:13px/1.6 system-ui;background:#0007;padding:10px 16px;border-radius:12px;text-align:center;pointer-events:none;backdrop-filter:blur(6px)}
 .touch #help{display:none}
-.stick{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));width:180px;height:180px;border-radius:50%;background:#0004;border:2px solid #fff6;display:none;backdrop-filter:blur(4px)}
+.stick{position:fixed;bottom:max(24px,env(safe-area-inset-bottom));width:clamp(210px,36vh,290px);height:clamp(210px,36vh,290px);border-radius:50%;background:#0004;border:2px solid #fff6;display:none;backdrop-filter:blur(4px)}
 .touch .stick{display:block}
 #sl{left:max(30px,env(safe-area-inset-left))}#sr{right:max(30px,env(safe-area-inset-right))}
-.knob{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px;border-radius:50%;background:#fffd;box-shadow:0 2px 8px #0008}
+.stick::before{content:"";position:absolute;inset:-36px}
+.knob{position:absolute;left:31%;top:31%;width:38%;height:38%;margin:0;border-radius:50%;background:#fffd;box-shadow:0 2px 8px #0008}
 .lbl{position:absolute;width:100%;text-align:center;top:-24px;font:600 12px system-ui;text-shadow:0 1px 3px #000}
 #trim{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);display:flex;gap:6px}#trim button{font:600 13px system-ui;color:#fff;background:#0007;border:1px solid #fff6;border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px);touch-action:none}.touch #trim{bottom:max(24px,env(safe-area-inset-bottom))}
 </style></head><body>
 <div id="hud"></div><div id="msg"></div>
-<div id="btns"><button id="bv">View (C)</button><button id="br">Reset (R)</button><button id="ba">Assist (L)</button><button id="bm">Random trim (M)</button></div>
+<div id="btns"><button id="bv">View (C)</button><button id="br">Reset (R)</button><button id="ba">Assist (L)</button><button id="bm">Random trim (M)</button><button id="brt">Rates (P)</button></div>
 <div id="trim"><button data-t="d">Pitch ▼</button><button data-t="u">Pitch ▲</button><button data-t="l">◀ Roll</button><button data-t="r">Roll ▶</button><button data-t="c">Center trim</button></div>
 <div id="help">Arrows: pitch / roll &nbsp;·&nbsp; W/S: throttle &nbsp;·&nbsp; A/D: rudder &nbsp;·&nbsp; Space: brake<br>C: change view &nbsp;·&nbsp; R: reset &nbsp;·&nbsp; I: invert pitch<br>Q/E: pitch trim &nbsp;·&nbsp; Z/X: roll trim &nbsp;·&nbsp; V: center trim &nbsp;·&nbsp; L: assist &nbsp;·&nbsp; M: random trim<br>Goal: fly through the rings in order, then land on the runway</div>
 <div class="stick" id="sl"><div class="lbl">Throttle / Rudder</div><div class="knob"></div></div>
@@ -141,32 +142,32 @@ function step(dt){
 const K={};let inv=1,camMode=0,thrT=0,trimP=0,trimR=0,assist=true,mis=false,gT=0;const key={ail:0,ele:0,rud:0};
 const names=['Follow','Exterior (pilot)','Cockpit'];
 addEventListener('keydown',e=>{K[e.code]=1;
- if(e.code=='KeyC')camMode=(camMode+1)%3;if(e.code=='KeyR')reset();if(e.code=='KeyI')inv=-inv;if(e.code=='KeyL')toggleAssist();if(e.code=='KeyM')toggleMis();if(e.code=='KeyV')centerTrim();
+ if(e.code=='KeyC')camMode=(camMode+1)%3;if(e.code=='KeyR')reset();if(e.code=='KeyI')inv=-inv;if(e.code=='KeyL')toggleAssist();if(e.code=='KeyM')toggleMis();if(e.code=='KeyV')centerTrim();if(e.code=='KeyP'){pr=1-pr;ui()}
  if(e.code.startsWith('Arrow')||e.code=='Space')e.preventDefault()});
 addEventListener('keyup',e=>K[e.code]=0);
 document.getElementById('bv').onclick=()=>camMode=(camMode+1)%3;
 document.getElementById('br').onclick=reset;
 function mkStick(el,keepY){const s={x:0,y:keepY?-1:0,id:null,el,keepY};
  const set=e=>{const r=el.getBoundingClientRect(),R=r.width/2;
-  let dx=(e.clientX-r.left-R)/(R*.7),dy=-(e.clientY-r.top-R)/(R*.7);const m=Math.hypot(dx,dy);if(m>1){dx/=m;dy/=m}
+  let dx=(e.clientX-r.left-R)/(R*.62),dy=-(e.clientY-r.top-R)/(R*.62);const m=Math.hypot(dx,dy);if(m>1){dx/=m;dy/=m}
   s.x=dx;s.y=dy;paintStick(el,s)};
  el.addEventListener('pointerdown',e=>{if(s.id!==null)return;s.id=e.pointerId;el.setPointerCapture(e.pointerId);set(e);e.preventDefault()});
  el.addEventListener('pointermove',e=>{if(e.pointerId===s.id)set(e)});
  const up=e=>{if(e.pointerId!==s.id)return;s.id=null;s.x=0;if(!keepY)s.y=0;paintStick(el,s)};
  el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);
  paintStick(el,s);return s}
-function paintStick(el,s){el=s.el||el;el.lastElementChild.style.transform=`translate(${s.x*63}px,${-s.y*63}px)`}
+function paintStick(el,s){el=s.el||el;el.lastElementChild.style.transform=`translate(${s.x*el.clientWidth*.31}px,${-s.y*el.clientWidth*.31}px)`}
 const sl=document.getElementById('sl'),sr=document.getElementById('sr');
 const L=mkStick(sl,true),R=mkStick(sr,false);
-const ex=v=>0.5*v+0.5*v*v*v,pick=(a,b)=>Math.abs(a)>Math.abs(b)?a:b;
+const PR=[{n:'Beginner',r:.7,e:.6},{n:'Sport',r:1,e:.4}];let pr=0;const ex=v=>PR[pr].r*((1-PR[pr].e)*v+PR[pr].e*v*v*v),pick=(a,b)=>Math.abs(a)>Math.abs(b)?a:b;
 const kb=(a,b)=>(K[a]?1:0)-(K[b]?1:0);
 const clampT=v=>clamp(v,-.6,.6);
 function randTrim(){const r=(a,b)=>(Math.random()<.5?-1:1)*(a+Math.random()*(b-a));trimP=r(.12,.3);trimR=r(.1,.22)}
 function centerTrim(){trimP=trimR=0}
-function ui(){document.getElementById('ba').textContent='Assist (L): '+(assist&&!mis?'ON':'OFF');document.getElementById('bm').textContent='Random trim (M): '+(mis?'ON':'OFF')}
+function ui(){document.getElementById('ba').textContent='Assist (L): '+(assist&&!mis?'ON':'OFF');document.getElementById('brt').textContent='Rates (P): '+PR[pr].n;document.getElementById('bm').textContent='Random trim (M): '+(mis?'ON':'OFF')}
 function toggleAssist(){assist=!assist;ui()}
 function toggleMis(){mis=!mis;if(mis)randTrim();ui()}
-document.getElementById('ba').onclick=toggleAssist;document.getElementById('bm').onclick=toggleMis;
+document.getElementById('ba').onclick=toggleAssist;document.getElementById('brt').onclick=()=>{pr=1-pr;ui()};document.getElementById('bm').onclick=toggleMis;
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>b.blur()));
 document.querySelectorAll('#trim button').forEach(b=>{
  const a={u:()=>trimP=clampT(trimP+.03),d:()=>trimP=clampT(trimP-.03),l:()=>trimR=clampT(trimR-.03),r:()=>trimR=clampT(trimR+.03),c:centerTrim};
