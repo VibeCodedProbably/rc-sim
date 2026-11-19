@@ -11,7 +11,7 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FLIGHTSIM_7C1D4 }}
           projectId: flightsim-7c1d4
           channelId: live
           # Second site in the same project? Add: target: your-target-name
