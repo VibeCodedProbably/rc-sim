@@ -8,7 +8,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9cc9f0;font-family:-a
 canvas{display:block}
 #hud{position:fixed;top:max(12px,env(safe-area-inset-top));left:14px;font:600 14px/1.5 ui-monospace,Menlo,monospace;white-space:pre;text-shadow:0 1px 4px #000;pointer-events:none}
 #msg{position:fixed;top:38%;width:100%;text-align:center;font:700 34px system-ui;text-shadow:0 2px 8px #000;pointer-events:none;display:none}
-#btns{position:fixed;top:max(12px,env(safe-area-inset-top));right:14px;display:flex;gap:8px}
+#btns{position:fixed;top:max(12px,env(safe-area-inset-top));right:14px;display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:62vw;gap:8px}
 #btns button{font:600 14px system-ui;color:#fff;background:#0007;border:1px solid #fff6;border-radius:10px;padding:10px 14px;backdrop-filter:blur(6px)}
 #help{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);font:13px/1.6 system-ui;background:#0007;padding:10px 16px;border-radius:12px;text-align:center;pointer-events:none;backdrop-filter:blur(6px)}
 .touch #help{display:none}
@@ -17,10 +17,12 @@ canvas{display:block}
 #sl{left:max(30px,env(safe-area-inset-left))}#sr{right:max(30px,env(safe-area-inset-right))}
 .knob{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px;border-radius:50%;background:#fffd;box-shadow:0 2px 8px #0008}
 .lbl{position:absolute;width:100%;text-align:center;top:-24px;font:600 12px system-ui;text-shadow:0 1px 3px #000}
+#trim{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);display:flex;gap:6px}#trim button{font:600 13px system-ui;color:#fff;background:#0007;border:1px solid #fff6;border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px);touch-action:none}.touch #trim{bottom:max(24px,env(safe-area-inset-bottom))}
 </style></head><body>
 <div id="hud"></div><div id="msg"></div>
-<div id="btns"><button id="bv">View (C)</button><button id="br">Reset (R)</button></div>
-<div id="help">Arrows: pitch / roll &nbsp;·&nbsp; W/S: throttle &nbsp;·&nbsp; A/D: rudder &nbsp;·&nbsp; Space: brake<br>C: change view &nbsp;·&nbsp; R: reset &nbsp;·&nbsp; I: invert pitch<br>Goal: fly through the rings in order, then land on the runway</div>
+<div id="btns"><button id="bv">View (C)</button><button id="br">Reset (R)</button><button id="ba">Assist (L)</button><button id="bm">Random trim (M)</button></div>
+<div id="trim"><button data-t="d">Pitch ▼</button><button data-t="u">Pitch ▲</button><button data-t="l">◀ Roll</button><button data-t="r">Roll ▶</button><button data-t="c">Center trim</button></div>
+<div id="help">Arrows: pitch / roll &nbsp;·&nbsp; W/S: throttle &nbsp;·&nbsp; A/D: rudder &nbsp;·&nbsp; Space: brake<br>C: change view &nbsp;·&nbsp; R: reset &nbsp;·&nbsp; I: invert pitch<br>Q/E: pitch trim &nbsp;·&nbsp; Z/X: roll trim &nbsp;·&nbsp; V: center trim &nbsp;·&nbsp; L: assist &nbsp;·&nbsp; M: random trim<br>Goal: fly through the rings in order, then land on the runway</div>
 <div class="stick" id="sl"><div class="lbl">Throttle / Rudder</div><div class="knob"></div></div>
 <div class="stick" id="sr"><div class="lbl">Pitch / Roll</div><div class="knob"></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -78,7 +80,7 @@ shadow.rotation.x=-Math.PI/2;scene.add(shadow);
 const P={m:1.5,S:0.28,b:1.4,c:0.2,Tmax:14,rho:1.225,Ix:0.05,Iy:0.12,Iz:0.10};
 const st={p:new V3(),v:new V3(),q:new Q(),w:new V3(),V:0,al:0,ground:false,crash:0};
 const c={ail:0,ele:0,rud:0,thr:0};let brake=0,simT=0;
-function reset(){st.p.set(0,0.14,0);st.v.set(0,0,0);st.q.set(0,0,0,1);st.w.set(0,0,0);st.crash=0;st.V=0;st.al=0;c.ail=c.ele=c.rud=c.thr=0;thrT=0;L.y=-1;paintStick(sl,L);document.getElementById('msg').style.display='none';resetCourse()}
+function reset(){st.p.set(0,0.14,0);st.v.set(0,0,0);st.q.set(0,0,0,1);st.w.set(0,0,0);st.crash=0;st.V=0;st.al=0;c.ail=c.ele=c.rud=c.thr=0;thrT=0;L.y=-1;paintStick(sl,L);document.getElementById('msg').style.display='none';resetCourse();trimP=trimR=0;gT=0;if(mis)randTrim()}
 
 function step(dt){
  const qi=st.q.clone().invert();
@@ -103,7 +105,7 @@ function step(dt){
  // moments (x=roll, y=yaw[+left], z=pitch[+nose up])
  const k=P.b/(2*Ve),kc=P.c/(2*Ve),{x:p,y:r,z:qq}=st.w;
  const Mx=qe*P.S*P.b*(0.08*c.ail-0.45*p*k-0.1*r*k)-qb*P.S*P.b*0.05*be-0.1*c.thr;
- const Mz=qe*P.S*P.c*(0.28*c.ele-12*qq*kc)+qb*P.S*P.c*(0.038-0.8*clamp(al,-0.7,0.7));
+ const Mz=qe*P.S*P.c*(0.28*c.ele-12*qq*kc)+qb*P.S*P.c*(0.03-0.8*clamp(al,-0.7,0.7));
  const My=qb*P.S*P.b*(-0.06*be)+qe*P.S*P.b*(-0.02*c.rud-0.15*r*k+0.01*c.ail);
  const Mb=new V3(Mx,My,Mz);
  // ground contact (wheels + airframe)
@@ -136,10 +138,10 @@ function step(dt){
 }
 
 /* ---------- input: keyboard + touch sticks ---------- */
-const K={};let inv=1,camMode=0,thrT=0;const key={ail:0,ele:0,rud:0};
+const K={};let inv=1,camMode=0,thrT=0,trimP=0,trimR=0,assist=true,mis=false,gT=0;const key={ail:0,ele:0,rud:0};
 const names=['Follow','Exterior (pilot)','Cockpit'];
 addEventListener('keydown',e=>{K[e.code]=1;
- if(e.code=='KeyC')camMode=(camMode+1)%3;if(e.code=='KeyR')reset();if(e.code=='KeyI')inv=-inv;
+ if(e.code=='KeyC')camMode=(camMode+1)%3;if(e.code=='KeyR')reset();if(e.code=='KeyI')inv=-inv;if(e.code=='KeyL')toggleAssist();if(e.code=='KeyM')toggleMis();if(e.code=='KeyV')centerTrim();
  if(e.code.startsWith('Arrow')||e.code=='Space')e.preventDefault()});
 addEventListener('keyup',e=>K[e.code]=0);
 document.getElementById('bv').onclick=()=>camMode=(camMode+1)%3;
@@ -158,6 +160,19 @@ const sl=document.getElementById('sl'),sr=document.getElementById('sr');
 const L=mkStick(sl,true),R=mkStick(sr,false);
 const ex=v=>0.5*v+0.5*v*v*v,pick=(a,b)=>Math.abs(a)>Math.abs(b)?a:b;
 const kb=(a,b)=>(K[a]?1:0)-(K[b]?1:0);
+const clampT=v=>clamp(v,-.6,.6);
+function randTrim(){const r=(a,b)=>(Math.random()<.5?-1:1)*(a+Math.random()*(b-a));trimP=r(.12,.3);trimR=r(.1,.22)}
+function centerTrim(){trimP=trimR=0}
+function ui(){document.getElementById('ba').textContent='Assist (L): '+(assist&&!mis?'ON':'OFF');document.getElementById('bm').textContent='Random trim (M): '+(mis?'ON':'OFF')}
+function toggleAssist(){assist=!assist;ui()}
+function toggleMis(){mis=!mis;if(mis)randTrim();ui()}
+document.getElementById('ba').onclick=toggleAssist;document.getElementById('bm').onclick=toggleMis;
+document.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>b.blur()));
+document.querySelectorAll('#trim button').forEach(b=>{
+ const a={u:()=>trimP=clampT(trimP+.03),d:()=>trimP=clampT(trimP-.03),l:()=>trimR=clampT(trimR-.03),r:()=>trimR=clampT(trimR+.03),c:centerTrim};
+ let iv;b.addEventListener('pointerdown',e=>{e.preventDefault();a[b.dataset.t]();if(b.dataset.t!='c')iv=setInterval(a[b.dataset.t],90)});
+ ['pointerup','pointerleave','pointercancel'].forEach(n=>b.addEventListener(n,()=>clearInterval(iv)))});
+ui();
 function inputs(dt){
  const ramp=(cur,t,r)=>cur+clamp(t-cur,-r*dt,r*dt);
  key.ail=ramp(key.ail,kb('ArrowRight','ArrowLeft'),4);
@@ -166,9 +181,19 @@ function inputs(dt){
  thrT=clamp(thrT+kb('KeyW','KeyS')*0.6*dt,0,1);
  if(L.id!==null)thrT=(L.y+1)/2;
  if(st.crash){c.thr=0;return}
- c.ail=ramp(c.ail,ex(pick(key.ail,R.x)),8);
- c.ele=ramp(c.ele,ex(pick(key.ele,-R.y*inv)),8);
- c.rud=ramp(c.rud,ex(pick(key.rud,L.x)),8);
+ trimP=clampT(trimP+kb('KeyE','KeyQ')*0.25*dt);trimR=clampT(trimR+kb('KeyX','KeyZ')*0.25*dt);
+ const sA=pick(key.ail,R.x),sE=pick(key.ele,-R.y*inv),sR=pick(key.rud,L.x);
+ let aA=0,aE=0;
+ if(assist&&!mis&&!st.ground&&st.V>8){ // wings-level + flight-path hold when sticks are centred
+  const u=new V3(0,1,0).applyQuaternion(st.q),rt=new V3(0,0,1).applyQuaternion(st.q);
+  const phi=Math.atan2(-rt.y,u.y),sp=st.v.length(),gam=sp>3?Math.asin(clamp(st.v.y/sp,-1,1)):0,fa=sm(st.V,8,12);
+  if(Math.abs(sE)>.05)gT=clamp(gam,-.25,.25);
+  aA=clamp(-1.5*phi-0.12*st.w.x,-.7,.7)*(1-Math.min(1,Math.abs(sA)*2))*fa;
+  aE=clamp(-1.4*(gam-gT)-0.1*st.w.z,-.6,.6)*(1-Math.min(1,Math.abs(sE)*2))*fa;
+ }else gT=0;
+ c.ail=ramp(c.ail,clamp(ex(sA)+aA+trimR,-1,1),8);
+ c.ele=ramp(c.ele,clamp(ex(sE)+aE+trimP,-1,1),8);
+ c.rud=ramp(c.rud,ex(sR),8);
  c.thr=ramp(c.thr,thrT,3);
  brake=(K.Space||(document.body.classList.contains('touch')&&thrT<.03&&st.ground))?1:0;
 }
@@ -234,7 +259,7 @@ function frame(now){
  shadow.position.set(st.p.x,0.03,st.p.z);const s=1/(1+st.p.y*.08);shadow.scale.setScalar(s);shadow.material.opacity=.35*s;
  updateCam(dt);
  const stall=Math.abs(st.al)>0.262&&st.V>4&&!st.ground;
- hud.textContent=`SPEED  ${(st.V*3.6).toFixed(0)} km/h\nALT    ${Math.max(0,st.p.y-.12).toFixed(1)} m\nTHR    ${(c.thr*100).toFixed(0)}%\nAOA    ${(st.al*57.3).toFixed(0)}°${stall?'  STALL':''}\nVIEW   ${names[camMode]}\n${courseHud()}`;
+ hud.textContent=`SPEED  ${(st.V*3.6).toFixed(0)} km/h\nALT    ${Math.max(0,st.p.y-.12).toFixed(1)} m\nTHR    ${(c.thr*100).toFixed(0)}%\nAOA    ${(st.al*57.3).toFixed(0)}°${stall?'  STALL':''}\nVIEW   ${names[camMode]}\nTRIM   P ${trimP>=0?"+":""}${trimP.toFixed(2)}  R ${trimR>=0?"+":""}${trimR.toFixed(2)}${mis?"  RANDOM":""}\nASSIST ${assist&&!mis?"ON":"OFF"}\n${courseHud()}`;
  renderer.render(scene,cam);requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
